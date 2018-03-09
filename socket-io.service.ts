@@ -1,6 +1,6 @@
 import { Injectable, EventEmitter, Inject } from '@angular/core';
 import { Observable } from 'rxjs/Observable';
-import 'rxjs/add/operator/share'; 
+import 'rxjs/add/operator/share';
 
 import * as io from 'socket.io-client';
 
@@ -10,11 +10,16 @@ import { SOCKET_CONFIG_TOKEN } from './socket-io.module';
 export class WrappedSocket {
     subscribersCounter = 0;
     ioSocket: any;
+    namespaces: any = {};
 
     constructor(@Inject(SOCKET_CONFIG_TOKEN) config: SocketIoConfig) {
         const url: string = config.url || '';
         const options: any = config.options || {};
         this.ioSocket = io(url, options);
+    }
+
+    of(name: string) {
+      this.namespaces[name] = this.ioSocket.of(name);
     }
 
     on(eventName: string, callback: Function) {
@@ -45,6 +50,15 @@ export class WrappedSocket {
         return this.ioSocket.removeAllListeners.apply(this.ioSocket, arguments);
     }
 
+    fromNamespaceEvent<T>(name: string, eventName: string): Observable<T> {
+      this.subscribersCounter++;
+      return Observable.create((observer: any) => {
+        this.namespaces[name].on(eventName, (data: T) => {
+          observer.next(data);
+        });
+      }).share();
+    }
+
     /** create an Observable from an event */
     fromEvent<T>(eventName: string): Observable<T> {
         this.subscribersCounter++;
@@ -58,7 +72,7 @@ export class WrappedSocket {
             };
         }).share();
     }
-   
+
     /* Creates a Promise for a one-time event */
     fromEventOnce<T>(eventName: string): Promise<T> {
         return new Promise<T>(resolve => this.once(eventName, resolve));
